@@ -1,0 +1,7 @@
+cuda-*
+*.sh
+*.pyc
+wandb/
+wound_segmentation/
+tattoo_generation/wandb
+tattoo_generation/models
