@@ -6,7 +6,7 @@ import torch
 import os 
 import argparse
 # implemented function
-from utils.edge_extract import extract_edge, overlay_edge
+from utils.mask_processing import *
 # wandb
 import wandb
 
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--filename', type=str, help='enter file name')
     parser.add_argument('-d', '--debug', action='store_true', help='debugging mode')
     parser.add_argument('-p', '--prompt', type=str, help='image generation prompt')
-    parser.add_argument('-l', '--lora', action='store_false', help='image generation prompt')
+    parser.add_argument('-l', '--lora', action='store_true', help='image generation prompt')
     args = parser.parse_args()    
 
 
@@ -25,10 +25,10 @@ if __name__ == "__main__":
     home_dir = os.path.expanduser('~')
     proj_dir = 'junhee/scart'
     # arguments
-    userid = args.userid if args.userid else 'junhee'
+    userid = args.userid if args.userid else 'user1'
     filename = args.filename if args.filename else 'burn.png'
     prompt = args.prompt if args.prompt else "Astronaut floating in the space"
-    img_gen_prompt = prompt + ", tattoo design, center align, big object" 
+    img_gen_prompt = prompt + ", line art, white background, center align, big object" 
     lora = True if args.lora else False
     # [determined] base model & lora path
     models_dir = f'{home_dir}/{proj_dir}/tattoo_generation/models'
@@ -70,7 +70,8 @@ if __name__ == "__main__":
     # Sampling tattoo 
     if lora:
         base_pipe.load_lora_weights(lora_path, adapter_name="tattoo")
-        draft = base_pipe(prompt=config.prompt, num_inference_steps=config.num_inference_steps, cross_attention_kwargs={"scale": config.lora_scale}).images[0]
+        draft = base_pipe(prompt=config.prompt, num_inference_steps=config.num_inference_steps, 
+                          cross_attention_kwargs={"scale": config.lora_scale}).images[0]
     else:
         draft = base_pipe(prompt=config.prompt, num_inference_steps=config.num_inference_steps).images[0]
 
@@ -85,11 +86,14 @@ if __name__ == "__main__":
         use_safetensors=True
     ).to(device)
 
-    # extract edge (black line and white background)
-    edge = extract_edge(mask_path).resize((1024, 1024))
-
     # concat tattoo (base layer) and edge (upper layer)
     draft = load_image(tattoo_path).resize((1024, 1024))
+    mask = load_image(mask_path).resize((1024, 1024))
+    bbox_coord, crop_mask = extract_bbox(mask)
+
+    search_mask_coord(draft, crop_mask)
+    
+    edge = extract_edge(mask_path).resize((1024, 1024))
     draft_with_edge = overlay_edge(draft, edge)
 
     # Sampling image by img2img pipeline

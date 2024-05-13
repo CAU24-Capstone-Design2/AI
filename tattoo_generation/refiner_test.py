@@ -11,7 +11,7 @@ import numpy as np
 import cv2
 from PIL import Image
 
-from utils.edge_extract import extract_edge, overlay_edge
+from tattoo_generation.utils.mask_processing import extract_edge, overlay_edge
 
 
 parser = argparse.ArgumentParser()
