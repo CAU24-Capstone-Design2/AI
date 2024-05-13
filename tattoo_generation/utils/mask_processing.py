@@ -22,9 +22,7 @@ def extract_edge(mask_path, save_path=None):
     return Image.fromarray(edge).convert("RGB")
 
 
-def bbox(mask_path):
-    mask = cv2.imread(mask_path, 0) 
-
+def bbox(mask):
     # 물체의 윤곽선 찾기
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -60,11 +58,7 @@ if __name__ == "__main__":
     iterations = args.bold
 
     edge = extract_edge(mask_path, iterations=iterations, save=True, save_path=output_path)
-
-    print('[edge info]')
-    print(f'type: {type(edge)}')
-    print(f'shape: {edge.size}')
-
-
-
+    bbox, crop_mask = bbox(mask_path)
+    print(bbox)
+    cv2.imwrite('asdf.png', crop_mask)
 
