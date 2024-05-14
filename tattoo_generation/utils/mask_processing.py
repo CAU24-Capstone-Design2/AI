@@ -10,10 +10,10 @@ from diffusers.utils import load_image
 def extract_bbox(mask: Image.Image) -> Tuple[List[int], Image.Image]:
     mask = np.array(mask.convert('L'))
 
-    # 물체의 윤곽선 찾기
+    # find contour
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # 바운딩 박스 추출
+    # extract bounding box
     bboxes = []
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)
@@ -26,6 +26,8 @@ def extract_bbox(mask: Image.Image) -> Tuple[List[int], Image.Image]:
     ]
     mask = Image.fromarray(mask[bbox[1]:bbox[3], bbox[0]:bbox[2]])
 
+    # mask.save('bbox.png')
+
     return bbox, mask
 
 
@@ -34,7 +36,7 @@ def search_mask_coord(tattoo: Image.Image, crop_mask: Image.Image) -> Tuple[floa
     gray_tattoo = np.array(tattoo.convert('L'))
 
     # 2. thresholding (threshold = 50)
-    gray_tattoo = np.where(gray_tattoo < 127, 1, 0)
+    gray_tattoo = np.where(gray_tattoo < 190, 1, 0)
 
     # print(type(gray_tattoo))
     # print(gray_tattoo.shape)
@@ -51,35 +53,56 @@ def search_mask_coord(tattoo: Image.Image, crop_mask: Image.Image) -> Tuple[floa
     # print(np.unique(mask, return_counts=True))
     
     # 4. for loop 
-    target = 0.8
+    lower_bound, upper_bound = 0.8, 0.9
     scale = 1.0 
     best = (1.0, 0.0, [])
     mask_size = crop_mask.shape
     
-# for _ in range(3):
-    for row in tqdm(range(0, gray_tattoo.shape[0] - mask_size[0], 5), desc="searching mask coord"):
+    for row in tqdm(range(0, gray_tattoo.shape[0] - mask_size[0], 5), desc=f"Searching mask coord (Scale: {scale})"):
         for col in range(0, gray_tattoo.shape[1] - mask_size[1], 5):
             score = np.sum(crop_mask * gray_tattoo[row:row+mask_size[0], col:col+mask_size[1]]) / num_white_pixel
-            print(f'[{row}, {col}]: {score}')
             best = (scale, score, [row, col, row+mask_size[0], col+mask_size[1]]) if best[1] < score else best
-    
-    # if best[1] == 0:
-    #     scale -= 0.1
-    #     print(f'Reduce sacle: {scale}')
-    #     mask_size = (int(mask_size[0] * scale), int(mask_size[1] * scale))
-    #     print(mask_size)
-    #     crop_mask = Image.fromarray(crop_mask, mode='L').resize((mask_size[1], mask_size[0]))
-    #     crop_mask = np.array(crop_mask)
-    #     num_white_pixel = np.sum(crop_mask)
-    # else:
-    #     break
-        
+
+    if best[1] < lower_bound: 
+        for _ in range(3):
+            for row in tqdm(range(0, gray_tattoo.shape[0] - mask_size[0], 5), desc=f"Searching mask coord (Scale: {scale})"):
+                for col in range(0, gray_tattoo.shape[1] - mask_size[1], 5):
+                    score = np.sum(crop_mask * gray_tattoo[row:row+mask_size[0], col:col+mask_size[1]]) / num_white_pixel
+                    best = (scale, score, [row, col, row+mask_size[0], col+mask_size[1]]) if best[1] < score else best
+
+            print(f'best score: {best[1]}')        
+
+            if best[1] < lower_bound:
+                scale -= 0.1
+                mask_size = (int(mask_size[0] * scale), int(mask_size[1] * scale))
+                crop_mask = Image.fromarray(crop_mask, mode='L').resize((mask_size[1], mask_size[0]))
+                crop_mask = np.array(crop_mask)
+                num_white_pixel = np.sum(crop_mask)
+            else:
+                break
+    else:
+        while upper_bound < best[1]:
+            for row in tqdm(range(0, gray_tattoo.shape[0] - mask_size[0], 5), desc=f"Searching mask coord (Scale: {scale})"):
+                for col in range(0, gray_tattoo.shape[1] - mask_size[1], 5):
+                    score = np.sum(crop_mask * gray_tattoo[row:row+mask_size[0], col:col+mask_size[1]]) / num_white_pixel
+                    best = (scale, score, [row, col, row+mask_size[0], col+mask_size[1]]) if best[1] < score else best
+
+            print(f'best score: {best[1]}')        
+
+            if best[1] < lower_bound:
+                scale += 0.1
+                mask_size = (int(mask_size[0] * scale), int(mask_size[1] * scale))
+                crop_mask = Image.fromarray(crop_mask, mode='L').resize((mask_size[1], mask_size[0]))
+                crop_mask = np.array(crop_mask)
+                num_white_pixel = np.sum(crop_mask)
+            else:
+                break
+
+
     return best
 
 
 def extract_edge(crop_mask: Image.Image) -> Image.Image:
-    # load mask with gray scale
-
     # edge extract (black edge and white background)
     crop_mask = np.array(crop_mask)
     edge = cv2.Canny(crop_mask, threshold1=100, threshold2=200)
@@ -88,23 +111,31 @@ def extract_edge(crop_mask: Image.Image) -> Image.Image:
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     edge = cv2.dilate(edge, kernel, iterations=1)
     edge = 255 - edge
-    edge = Image.fromarray(edge)
+    edge = Image.fromarray(edge, mode='L')
+
+    # edge.save('edge.png')
 
     return edge
 
 
 def overlay_edge(tattoo: Image.Image, edge: Image.Image, coord: List[int]) -> Image.Image:
-    moved_edge = np.array([[255 for _ in range(1024)] for _ in range(1024)])
-    moved_edge[coord[0]:coord[2], coord[1]:coord[3]] *= edge
+    moved_edge = Image.new("L", (1024, 1024), color="white")
+    moved_edge.paste(edge, (coord[1], coord[0]))
+    moved_edge = np.array(moved_edge)
+    
     overlay = np.array(tattoo)
-    overlay[np.array(moved_edge) == 0] = 0
+    overlay[moved_edge == 0] = 0
     overlay = Image.fromarray(overlay)
+
+    # overlay.save('overlay.png')
 
     return overlay
 
+
+
 if __name__ == "__main__":
-    mask_path = '/home/cvmlserver11/junhee/scart/images/1/masks/1.png'
-    tattoo_path = '/home/cvmlserver11/junhee/scart/images/1/tattoos/1.png'
+    mask_path = '/home/cvmlserver11/junhee/scart/images/user1/masks/burn4.jpg'
+    tattoo_path = '/home/cvmlserver11/junhee/scart/images/user1/tattoos/burn4.jpg'
 
     tattoo = load_image(tattoo_path).resize((1024, 1024))   # type: PIL.Image
     mask = load_image(mask_path).resize((1024, 1024))   # type: PIL.Image
@@ -118,5 +149,3 @@ if __name__ == "__main__":
 
     edge = extract_edge(crop_mask)  # type: PIL.Image
     overlay = overlay_edge(tattoo, edge, coord)
-    # cv2.imwrite('asdf.png', edge)
-    overlay.save('asdf.png')
