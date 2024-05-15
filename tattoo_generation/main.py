@@ -17,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--filename', type=str, help='enter file name')
     parser.add_argument('-d', '--debug', action='store_true', help='debugging mode')
     parser.add_argument('-p', '--prompt', type=str, help='image generation prompt')
-    parser.add_argument('-l', '--lora', action='store_true', help='image generation prompt')
+    parser.add_argument('-l', '--lora', action='store_true', help='Apply tattoo style LoRA')
     args = parser.parse_args()    
 
 
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     userid = args.userid if args.userid else 'user1'
     filename = args.filename if args.filename else 'burn.png'
     prompt = args.prompt if args.prompt else "Astronaut floating in the space"
-    img_gen_prompt = prompt + ", line art, white background, center align, big object" 
+    img_gen_prompt = prompt + ", tattoo design, white background, center align, big object" 
     lora = True if args.lora else False
     # [determined] base model & lora path
     models_dir = f'{home_dir}/{proj_dir}/tattoo_generation/models'
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     config.refiner_checkpoint = "stabilityai/stable-diffusion-xl-refiner-1.0"
     config.prompt = img_gen_prompt
     config.num_inference_steps = 30
-    config.lora_scale = 0.8
+    config.lora_scale = 0.65
     wandb.config.update(config)
 
     base_pipe = StableDiffusionXLPipeline.from_pretrained(
@@ -89,12 +89,11 @@ if __name__ == "__main__":
     # concat tattoo (base layer) and edge (upper layer)
     draft = load_image(tattoo_path).resize((1024, 1024))
     mask = load_image(mask_path).resize((1024, 1024))
-    bbox_coord, crop_mask = extract_bbox(mask)
 
-    search_mask_coord(draft, crop_mask)
-    
-    edge = extract_edge(mask_path).resize((1024, 1024))
-    draft_with_edge = overlay_edge(draft, edge)
+    _, crop_mask = extract_bbox(mask)
+    mask_scale, coverage_score, bbox_coord = search_mask_coord(draft, crop_mask)
+    edge = extract_edge(crop_mask)
+    draft_with_edge = overlay_edge(draft, edge, bbox_coord)
 
     # Sampling image by img2img pipeline
     tattoo = refiner_pipe(
@@ -105,14 +104,14 @@ if __name__ == "__main__":
     tattoo.save(tattoo_path)
 
     # Save integrated results to local
-    results = [edge, draft, draft_with_edge, tattoo]
+    results = [extract_edge(mask).resize((1024, 1024)), draft, draft_with_edge, tattoo]
     make_image_grid(results, rows=1, cols=len(results)).save(results_path)
     # Log the images and table to wandb
     table = wandb.Table(columns=[
         'Prompt', 'mask-edge', 'tattoo-design', 'tattoo-and-mask', 'refined-tattoo-design'
     ])
     table.add_data(
-        config.prompt, wandb.Image(edge), wandb.Image(draft), wandb.Image(draft_with_edge), wandb.Image(tattoo) 
+        config.prompt, wandb.Image(extract_edge(mask)), wandb.Image(draft), wandb.Image(draft_with_edge), wandb.Image(tattoo) 
     )
 
     wandb.log({
