@@ -4,7 +4,7 @@ import cv2
 from tqdm import tqdm
 from typing import Tuple, List
 
-from diffusers.utils import load_image
+from diffusers.utils import load_image, make_image_grid
 
 
 def extract_bbox(back_and_mask: Image.Image) -> Tuple[List[int], Image.Image]:
@@ -25,8 +25,6 @@ def extract_bbox(back_and_mask: Image.Image) -> Tuple[List[int], Image.Image]:
         np.max(bboxes[:, 2]), np.max(bboxes[:, 3])
     ]
     mask = Image.fromarray(mask[bbox[1]:bbox[3], bbox[0]:bbox[2]])
-
-    mask.save('bbox.png')
 
     return bbox, mask
 
@@ -92,8 +90,6 @@ def search_mask_coord(tattoo: Image.Image, mask: Image.Image) -> Tuple[float, fl
 
             print(f'best score: {best[1]}')        
 
-    Image.fromarray(crop_mask).save("mask_check.png")
-
     return best
 
 
@@ -108,8 +104,6 @@ def extract_edge(crop_mask: Image.Image) -> Image.Image:
     edge = 255 - edge
     edge = Image.fromarray(edge, mode='L')
 
-    edge.save('edge.png')
-
     return edge
 
 
@@ -123,18 +117,27 @@ def overlay_edge(tattoo: Image.Image, edge: Image.Image, coord: List[int]) -> Im
     overlay[moved_edge == 0] = 0
     overlay = Image.fromarray(overlay)
 
-    overlay.save('overlay.png')
-
     return overlay
 
 
+def extract_wound(input:Image.Image, mask: Image.Image) -> Image.Image:
+    dst = cv2.bitwise_and(input, input, mask=mask)
+    tmp = cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY)
+    mask = cv2.threshold(tmp, 0, 255, cv2.THRESH_BINARY)[1]
+
+    result = np.dstack((dst, mask))
+
+    return result
+
 
 if __name__ == "__main__":
-    mask_path = '/home/cvmlserver11/junhee/scart/images/user1/masks/scar1.png'
-    tattoo_path = '/home/cvmlserver11/junhee/scart/images/user1/tattoos/scar1.png'
+    filename = 'burn3.jpeg'
+    mask_path = f'/home/cvmlserver11/junhee/scart/images/user1/masks/{filename}'
+    tattoo_path = f'/home/cvmlserver11/junhee/scart/images/user1/tattoos/{filename}'
 
     tattoo = load_image(tattoo_path).resize((1024, 1024))   # type: PIL.Image
     mask = load_image(mask_path).resize((1024, 1024))   # type: PIL.Image
+
     bbox, crop_mask = extract_bbox(mask)
     print(f'bbox: {bbox}')
     print(type(crop_mask))
@@ -151,3 +154,6 @@ if __name__ == "__main__":
 
     overlay = overlay_edge(tattoo, edge, coord)
 
+    only_filename = filename.split('.')[0]
+    image_list = [tattoo, mask, overlay]
+    make_image_grid(image_list, rows=1, cols=len(image_list)).save(f'../results/{only_filename}_overlay_result.png')
