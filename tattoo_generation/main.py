@@ -35,6 +35,7 @@ if __name__ == "__main__":
     model_path = f'{models_dir}/sdxl_base_1.0.safetensors'
     lora_path = f'{models_dir}/lora/Traditional_Tattoos.safetensors'
     # [determined] mask & tattoo & inpaint path
+    input_path = f'{home_dir}/{proj_dir}/images/{userid}/inputs/{filename}'
     mask_path = f'{home_dir}/{proj_dir}/images/{userid}/masks/{filename}'
     tattoo_path = f'{home_dir}/{proj_dir}/images/{userid}/tattoos/{filename}'
     inpaint_path = f'{home_dir}/{proj_dir}/images/{userid}/inpaint/{filename}'
@@ -100,8 +101,12 @@ if __name__ == "__main__":
         prompt=config.prompt, 
         image=draft_with_edge, 
     ).images[0]
-
     tattoo.save(tattoo_path)
+
+    # save masked wound image 
+    wound = load_image(input_path).resize((1024, 1024))
+    wound = extract_wound(wound, mask)
+    wound.save(mask_path)
 
     # Save integrated results to local
     results = [extract_edge(mask).resize((1024, 1024)), draft, draft_with_edge, tattoo]

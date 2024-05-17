@@ -121,39 +121,43 @@ def overlay_edge(tattoo: Image.Image, edge: Image.Image, coord: List[int]) -> Im
 
 
 def extract_wound(input:Image.Image, mask: Image.Image) -> Image.Image:
-    dst = cv2.bitwise_and(input, input, mask=mask)
-    tmp = cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY)
-    mask = cv2.threshold(tmp, 0, 255, cv2.THRESH_BINARY)[1]
-
-    result = np.dstack((dst, mask))
-
+    mask = mask.convert('L')
+    result = Image.composite(input, Image.new('RGB', input.size), mask)
     return result
 
 
 if __name__ == "__main__":
     filename = 'burn3.jpeg'
+    input_path = f'/home/cvmlserver11/junhee/scart/images/user1/inputs/{filename}'
     mask_path = f'/home/cvmlserver11/junhee/scart/images/user1/masks/{filename}'
     tattoo_path = f'/home/cvmlserver11/junhee/scart/images/user1/tattoos/{filename}'
 
-    tattoo = load_image(tattoo_path).resize((1024, 1024))   # type: PIL.Image
-    mask = load_image(mask_path).resize((1024, 1024))   # type: PIL.Image
+    # tattoo = load_image(tattoo_path).resize((1024, 1024))   # type: PIL.Image
+    # mask = load_image(mask_path).resize((1024, 1024))   # type: PIL.Image
 
-    bbox, crop_mask = extract_bbox(mask)
-    print(f'bbox: {bbox}')
-    print(type(crop_mask))
-    print(crop_mask.size)
+    # bbox, crop_mask = extract_bbox(mask)
+    # print(f'bbox: {bbox}')
+    # print(type(crop_mask))
+    # print(crop_mask.size)
 
-    scale, score, coord = search_mask_coord(tattoo, crop_mask)
-    print(f'Moved mask information')
-    print(f'Scale: {scale}')
-    print(f'Coverage score: {score}')
-    print(f'Coordinate: {coord}')
+    # scale, score, coord = search_mask_coord(tattoo, crop_mask)
+    # print(f'Moved mask information')
+    # print(f'Scale: {scale}')
+    # print(f'Coverage score: {score}')
+    # print(f'Coordinate: {coord}')
 
-    edge = extract_edge(crop_mask)  # type: PIL.Image
-    print(f'edge size: {edge.size}')
+    # edge = extract_edge(crop_mask)  # type: PIL.Image
+    # print(f'edge size: {edge.size}')
 
-    overlay = overlay_edge(tattoo, edge, coord)
+    # overlay = overlay_edge(tattoo, edge, coord)
 
-    only_filename = filename.split('.')[0]
-    image_list = [tattoo, mask, overlay]
-    make_image_grid(image_list, rows=1, cols=len(image_list)).save(f'../results/{only_filename}_overlay_result.png')
+    # only_filename = filename.split('.')[0]
+    # image_list = [tattoo, mask, overlay]
+    # make_image_grid(image_list, rows=1, cols=len(image_list)).save(f'../results/{only_filename}_overlay_result.png')
+
+    input = load_image(input_path).resize((1024, 1024))
+    print(input.size)
+    mask = load_image(mask_path).resize((1024, 1024))
+    print(mask.size)
+    wound = extract_wound(input, mask)
+    wound.save("./asdf.png")
