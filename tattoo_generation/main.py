@@ -24,8 +24,6 @@ if __name__ == "__main__":
     # arguments
     userid = args.userid 
     filename = args.filename
-    # prompt = args.prompt + ", with white background, center align, big object" 
-    # prompt = args.prompt + ", tattoo design, white background, no gradations, no shadows, clear contrast between background and foreground, intricate line work, center align, big object"
     prompt = args.prompt
     lora = args.lora.replace(' ', '').lower() if args.lora else None
     use_inpaint = args.inpaint
