@@ -21,9 +21,6 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--debug', action='store_true', help='debugging mode')
     args = parser.parse_args()    
 
-    # project directory path (hardcoded)
-    home_dir = os.path.expanduser('~')
-    proj_dir = 'path/to/proj/dir'
     # arguments
     userid = args.userid 
     filename = args.filename
@@ -37,10 +34,6 @@ if __name__ == "__main__":
     mask_path = f'../images/{userid}/masks/{filename}'
     tattoo_path = f'../images/{userid}/tattoos/{filename}'
     synthesis_path = f'../images/{userid}/synthesis/{filename}'
-    # input_path = f'{home_dir}/{proj_dir}/images/{userid}/inputs/{filename}'
-    # mask_path = f'{home_dir}/{proj_dir}/images/{userid}/masks/{filename}'
-    # tattoo_path = f'{home_dir}/{proj_dir}/images/{userid}/tattoos/{filename}'
-    # synthesis_path = f'{home_dir}/{proj_dir}/images/{userid}/synthesis/{filename}'
     # integrated image path
     results_path = 'results/result.png'
     # device
