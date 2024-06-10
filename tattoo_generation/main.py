@@ -33,10 +33,14 @@ if __name__ == "__main__":
     lora = args.lora.replace(' ', '').lower() if args.lora else None
     use_inpaint = args.inpaint
     # path
-    input_path = f'{home_dir}/{proj_dir}/images/{userid}/inputs/{filename}'
-    mask_path = f'{home_dir}/{proj_dir}/images/{userid}/masks/{filename}'
-    tattoo_path = f'{home_dir}/{proj_dir}/images/{userid}/tattoos/{filename}'
-    synthesis_path = f'{home_dir}/{proj_dir}/images/{userid}/synthesis/{filename}'
+    input_path = f'../images/{userid}/inputs/{filename}'
+    mask_path = f'../images/{userid}/masks/{filename}'
+    tattoo_path = f'../images/{userid}/tattoos/{filename}'
+    synthesis_path = f'../images/{userid}/synthesis/{filename}'
+    # input_path = f'{home_dir}/{proj_dir}/images/{userid}/inputs/{filename}'
+    # mask_path = f'{home_dir}/{proj_dir}/images/{userid}/masks/{filename}'
+    # tattoo_path = f'{home_dir}/{proj_dir}/images/{userid}/tattoos/{filename}'
+    # synthesis_path = f'{home_dir}/{proj_dir}/images/{userid}/synthesis/{filename}'
     # integrated image path
     results_path = 'results/result.png'
     # device
@@ -74,8 +78,7 @@ if __name__ == "__main__":
 
     if config.lora_checkpoint:
         base_pipe.load_lora_weights(config.lora_checkpoint, adapter_name="tattoo")
-        generator = torch.Generator(device="cuda").manual_seed(0)
-        draft = base_pipe(prompt=config.prompt, num_inference_steps=config.num_inference_steps, generator=generator).images[0]
+        draft = base_pipe(prompt=config.prompt, num_inference_steps=config.num_inference_steps).images[0]
     else:
         draft = base_pipe(prompt=config.prompt, num_inference_steps=config.num_inference_steps).images[0]
 
