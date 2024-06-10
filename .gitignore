@@ -1,18 +1,19 @@
 cuda-*
 
-*.sh
 *.pyc
 *.out
 *.jar
 
-images/
+images/test
+images/user1
 
 wandb/
 
+wound_segmentation/*.sh
 wound_segmentation/datasets
 wound_segmentation/detectron2
 
-
+tattoo_generation/*.sh
 tattoo_generation/wandb
 tattoo_generation/models
 tattoo_generation/__pycache__
