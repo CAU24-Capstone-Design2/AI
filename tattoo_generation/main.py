@@ -6,7 +6,7 @@ import torch
 import os 
 import argparse
 # implemented function
-from utils.mask_processing import *
+from scart.tattoo_generation.utils.utils import *
 # wandb
 import wandb
 
@@ -39,9 +39,14 @@ if __name__ == "__main__":
 
 
     # Initialize wandb run
-    wandb.init(project='ScArt', allow_val_change=True)
-    wandb.run.name = 'tattoo-generation'
-    wandb.run.save() 
+    api = wandb.Api()
+    runs = api.runs('melancholic/ScArt')
+    run_name = f'{len(runs) + 1}-{prompt.replace(" ", "_")}'
+
+    wandb.init(
+        project='ScArt', 
+        name=run_name
+    )
 
     config = wandb.config
     config.base_checkpoint = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -77,11 +82,11 @@ if __name__ == "__main__":
     # Search mask position
     wnd_mask = load_image(mask_path).resize((1024, 1024))
     wnd_bbox, crop_wnd_mask = extract_bbox(wnd_mask)
-    wnd_scale, coverage_score, wnd_on_tat_bbox = search_mask_coord(draft, crop_wnd_mask, lower_bound=0.95, upper_bound=0.98)
+    wnd_scale, coverage_score, wnd_on_tat_bbox = search_mask_coord(draft, lora, crop_wnd_mask, lower_bound=0.95, upper_bound=0.98)
 
     # overlay wound edge to tattoo
     edge = extract_edge(crop_wnd_mask)
-    draft_with_edge = overlay_edge(draft, edge, wnd_on_tat_bbox)
+    draft_with_edge = overlay_edge(draft, lora, edge, wnd_on_tat_bbox)
 
     
     if use_inpaint:
@@ -92,7 +97,7 @@ if __name__ == "__main__":
             config.inpaint_checkpoint, 
             torch_dtype=torch.float16, 
             variant="fp16"
-            ).to(device)
+        ).to(device)
         
         tattoo = inpaint_pipe(
             prompt=args.prompt,
@@ -102,7 +107,8 @@ if __name__ == "__main__":
             num_inference_steps=config.inpaint_num_inference_steps,  
             strength=config.inpaint_strength,  
         ).images[0]
-    else :
+
+    else:
         # Refine image using img2img pipeline
         refiner_pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(
             config.refiner_checkpoint, 
@@ -137,9 +143,11 @@ if __name__ == "__main__":
     table = wandb.Table(columns=[
         'Prompt', 'mask-edge', 'tattoo-design', 'tattoo-and-mask', 'refined-tattoo-design'
     ])
+
     table.add_data(
         config.prompt, wandb.Image(extract_edge(wnd_mask)), wandb.Image(draft), wandb.Image(draft_with_edge), wandb.Image(tattoo) 
     )
+    
     wandb.log({"Prompt-and-Results": table})
 
     wandb.finish()

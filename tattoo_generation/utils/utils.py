@@ -14,6 +14,8 @@ import torch
 from torchvision.transforms.functional import to_pil_image
 from transformers import SamModel, SamProcessor
 
+from rembg import remove, new_session
+
 
 def extract_bbox(back_and_mask: Image.Image) -> Tuple[List[int], Image.Image]:
     mask = np.array(back_and_mask.convert('L'))
@@ -36,6 +38,12 @@ def extract_bbox(back_and_mask: Image.Image) -> Tuple[List[int], Image.Image]:
 
     return bbox, mask
 
+def extract_tattoo_mask(tattoo: Image.Image, genre:str, tattoo_threshold: int=60) -> Image.Image:
+    session = new_session('isnet-anime') if genre == 'realism' else None
+    tattoo_mask = remove(tattoo, session=session, only_mask=True, post_process_mask=True)
+            
+    return tattoo_mask
+
 
 def extract_tattoo_mask_v1(tattoo: Image.Image, tattoo_threshold: int=60) -> Image.Image:
     # 1. convert tattoo to gray scale image
@@ -50,7 +58,7 @@ def extract_tattoo_mask_v1(tattoo: Image.Image, tattoo_threshold: int=60) -> Ima
     return Image.fromarray(tattoo_mask)
 
 
-def extract_tattoo_mask(tattoo: Image.Image, tattoo_threshold: int=60) -> Image.Image:
+def extract_tattoo_mask_v2(tattoo: Image.Image, tattoo_threshold: int=60) -> Image.Image:
     # 1. convert tattoo to gray scale image
     gray_tattoo = np.array(tattoo)
     gray_tattoo = cv2.cvtColor(gray_tattoo, cv2.COLOR_RGB2GRAY)
@@ -110,11 +118,12 @@ def extract_tattoo_mask_v3(tattoo: Image) -> Image:
 
 def search_mask_coord(
         tattoo: Image.Image, 
+        genre: str,
         mask: Image.Image, 
         lower_bound: float=0.95, 
         upper_bound: float=0.98) -> Tuple[float, float, List[int]]:
     # 1. make tattoo mask
-    tattoo_mask = extract_tattoo_mask(tattoo=tattoo).convert('1')
+    tattoo_mask = extract_tattoo_mask(tattoo=tattoo, genre=genre).convert('1')
     tattoo_mask = np.array(tattoo_mask)
 
     # 2. mask thresholding (threshold = 1, over => 1, o.w => 0)
@@ -197,8 +206,8 @@ def make_moved_wnd_mask(crop_wnd_mask: Image.Image, wnd_on_tat_bbox: List[int]) 
     return moved_wnd_mask
 
 
-def overlay_edge(tattoo: Image.Image, edge: Image.Image, coord: List[int]) -> Image.Image:
-    tat_mask = extract_tattoo_mask(tattoo=tattoo)
+def overlay_edge(tattoo: Image.Image, genre:str, edge: Image.Image, coord: List[int]) -> Image.Image:
+    tat_mask = extract_tattoo_mask(tattoo=tattoo, genre=genre)
     
     moved_edge = Image.new("L", (1024, 1024), color="white")
     moved_edge.paste(edge.resize((coord[2] - coord[0], coord[3] - coord[1])), (coord[0], coord[1]))
@@ -259,6 +268,7 @@ def extract_skin_mask(image: Image.Image, bbox: List[int]) -> Image.Image:
 def synthesis_tattoo(
         input_image: Image.Image,
         tattoo: Image.Image, 
+        genre: str,
         wnd_bbox: List[int], 
         wnd_on_tat_bbox: List[int], 
         scale: int) -> Image.Image:
@@ -268,7 +278,7 @@ def synthesis_tattoo(
     wnd_on_tat_bbox = (np.array(wnd_on_tat_bbox) * (1.0 / scale)).astype(np.intc)
 
     skin_mask = extract_skin_mask(image=input_image, bbox=wnd_bbox)
-    tat_mask = extract_tattoo_mask(tattoo=resized_tattoo)
+    tat_mask = extract_tattoo_mask(tattoo=resized_tattoo, genre=genre)
 
     skin_image_frame = (0, 0, skin_mask.size[0], skin_mask.size[1])
 
@@ -318,7 +328,7 @@ if __name__ == "__main__":
 
     user = args.user
     filename = args.file
-    base_dir = 'path/to/base/dir'
+    base_dir = '/home/cvmlserver4/junhee'
     input_path = f'{base_dir}/scart/images/{user}/inputs/{filename}'
     mask_path = f'{base_dir}/scart/images/{user}/masks/{filename}'
     tattoo_path = f'{base_dir}/scart/images/{user}/tattoos/{filename}'
@@ -328,8 +338,10 @@ if __name__ == "__main__":
     tattoo = load_image(tattoo_path).resize((1024, 1024))   # type: PIL.Image
 
 
-    extract_tattoo_mask(tattoo=tattoo).save("tat_mask.png")
+    bbox, crop_mask = extract_bbox(wnd_mask)
+    edge = extract_edge(crop_mask=crop_mask)
+    # overlay_edge(tattoo=tattoo, edge=edge, coord=bbox).save('overlay_edge.png')
 
-    mask = extract_tattoo_mask(tattoo)
-    mask.save("tat_mask_with_canny.png")
+    wnd_scale, coverage_score, wnd_on_tat_bbox = search_mask_coord(tattoo=tattoo, genre='realism', mask=crop_mask, lower_bound=0.95, upper_bound=0.98)
 
+    synthesis_tattoo(input_image=input_image, tattoo=tattoo, genre='realism', wnd_bbox=bbox, wnd_on_tat_bbox=wnd_on_tat_bbox, scale=wnd_scale).save('./syn_results_upgrade.png')
