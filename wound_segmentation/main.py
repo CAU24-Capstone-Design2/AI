@@ -12,9 +12,11 @@ warnings.filterwarnings('ignore')
 import torch
 import torchvision 
 
-from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
+# from detectron2 import model_zoo
+# from detectron2.engine import DefaultPredictor
+# from detectron2.config import get_cfg
+
+from lang_sam.lang_sam import LangSAM
 
 def image_resize(file_path, target_size):
     img = cv2.imread(file_path)
@@ -57,7 +59,7 @@ if __name__ == '__main__':
     args = parser.parse_args()    
 
     # image 경로 정의 
-    base_dir = '/home/cvmlserver11/junhee/scart/images'
+    base_dir = os.path.join(os.path.abspath('..'), 'images')
     userid = args.user
     filename = args.filename
     image_path = f'{base_dir}/{userid}/inputs/{filename}'
@@ -68,28 +70,37 @@ if __name__ == '__main__':
         print(f'base_dir: {base_dir}')
         print(f'user_id: {userid}')
         print(f'filename: {filename}')
-        print(f'image path: {image_path}')
+        print(f'image path: {image_path}\n')
     
-    # config 불러오기 + pretrained model weight 가져오기
-    cfg = get_cfg() 
-    cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
-    cfg.OUTPUT_DIR = './detectron2/output'
-    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "wound_seg_310.pth")  # path to the model we just trained
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5   # set a custom testing threshold
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 5
+    # # config 불러오기 + pretrained model weight 가져오기
+    # cfg = get_cfg() 
+    # cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
+    # cfg.OUTPUT_DIR = './detectron2/output'
+    # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "wound_seg_310.pth")  # path to the model we just trained
+    # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5   # set a custom testing threshold
+    # cfg.MODEL.ROI_HEADS.NUM_CLASSES = 5
 
-    # predictor 생성
-    predictor = DefaultPredictor(cfg)
+    # # predictor 생성
+    # predictor = DefaultPredictor(cfg)
 
-    # segmentation  
-    image = cv2.imread(image_path)
-    image = cv2.resize(image, (1024, 1024), interpolation=cv2.INTER_LINEAR)
-    pred = predictor(image)
-    pred_masks = pred['instances'].pred_masks
+    # # segmentation  
+    # image = cv2.imread(image_path)
+    # image = cv2.resize(image, (1024, 1024), interpolation=cv2.INTER_LINEAR)
+    # pred = predictor(image)
+    # pred_masks = pred['instances'].pred_masks
+
+    # LangSAM
+    model = LangSAM()
+
+    image = Image.open(image_path).resize((1024, 1024))
+    text_prompt = 'scar'
+    pred_masks, boxes, phrases, logits = model.predict(image, text_prompt)
 
     if args.debug:
-        print('\n[prediction info]')
-        print(f'type: {type(image)}')
+        print('\n[mask info]')
+        print(f'number of masks: {len(logits)}')
+        for i, (phrase, logit) in enumerate(zip(phrases, logits)):
+            print(f'[{i}] phrase: {phrase}, logit: {logit}')
         print(f'predicted mask shape: {pred_masks.size()}\n')
 
     # 하나로 합친 mask 반환
@@ -116,5 +127,6 @@ if __name__ == '__main__':
         print(f'max value: {merged_mask.max()}\n')
 
     # save
-    cv2.imwrite(image_path, image)
+    # cv2.imwrite(image_path, image)
+    image.save(image_path)
     torchvision.utils.save_image(merged_mask, mask_path)
